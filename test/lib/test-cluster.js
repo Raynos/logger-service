@@ -23,15 +23,17 @@ function TestCluster(opts) {
     var self = this;
 
     self.logger = DebugLogtron('loggerservice');
-    self.appCount = 1;
+    self.appCount = opts.appCount || 1;
     self.apps = [];
+    self.appPorts = [];
+    self.bootFile = null;
 
     self.kafkaServer = KafkaServer(onMessage);
     self.kafkaHost = 'localhost';
     self.kafkaPort = self.kafkaServer.port; // looooooool
     self.kafkaMessages = [];
 
-    self.client = null;
+    self.clients = [];
 
     function onMessage(message) {
         self.onKafkaMessage(message);
@@ -42,8 +44,18 @@ TestCluster.prototype.bootstrap = function bootstrap(cb) {
     var self = this;
 
     for (var i = 0; i < self.appCount; i++) {
+        self.appPorts[i] = 20000 + Math.floor(Math.random() * 10000);
+    }
+
+    self.bootFile = self.appPorts.map(function b(port) {
+        return '127.0.0.1:' + port;
+    });
+
+    for (i = 0; i < self.appCount; i++) {
         self.apps[i] = Application({
-            logger: self.logger
+            logger: self.logger,
+            port: self.appPorts[i],
+            bootFile: self.bootFile
         });
     }
 
@@ -56,7 +68,11 @@ TestCluster.prototype.bootstrap = function bootstrap(cb) {
             return cb(err);
         }
 
-        self.client = TestClient(self);
+        for (i = 0; i < self.appCount; i++) {
+            var hostPort = self.bootFile[i];
+
+            self.clients[i] = TestClient(self, hostPort);
+        }
         cb(null);
     }
 };
@@ -79,16 +95,12 @@ TestCluster.prototype.close = function close(cb) {
     cb();
 };
 
-function TestClient(cluster) {
+function TestClient(cluster, hostPort) {
     if (!(this instanceof TestClient)) {
-        return new TestClient(cluster);
+        return new TestClient(cluster, hostPort);
     }
 
     var self = this;
-
-    var peers = cluster.apps.map(function h(app) {
-        return app.clients.tchannel.hostPort;
-    });
 
     self.cluster = cluster;
     self.tchannel = TChannel({
@@ -103,7 +115,7 @@ function TestClient(cluster) {
     self.tchannelThrift = self.cluster.apps[0].clients.tchannelThrift;
     self.clientChannel = self.tchannel.makeSubChannel({
         serviceName: 'logger',
-        peers: peers
+        peers: [hostPort]
     });
 
     self.token = null;
@@ -112,9 +124,10 @@ function TestClient(cluster) {
 TestClient.prototype.init = function init(cb) {
     var self = this;
 
-    self.tchannelThrift.send(self.clientChannel.request({
+    var req = self.clientChannel.request({
         serviceName: 'logger'
-    }), 'Logger::init', null, {
+    });
+    self.tchannelThrift.send(req, 'Logger::init', null, {
         kafkaHost: self.cluster.kafkaHost,
         kafkaPort: self.cluster.kafkaPort,
         team: 'rt',
@@ -135,10 +148,14 @@ TestClient.prototype.init = function init(cb) {
 TestClient.prototype.log = function log(opts, cb) {
     var self = this;
 
-    self.tchannelThrift.send(self.clientChannel.request({
-        serviceName: 'logger'
-    }), 'Logger::log', null, {
-        token: self.token,
+    var req = self.clientChannel.request({
+        serviceName: 'logger',
+        host: opts.host,
+        headers: {
+            shardKey: opts.token
+        }
+    });
+    self.tchannelThrift.send(req, 'Logger::log', null, {
         message: opts.message,
         level: opts.level
     }, cb);

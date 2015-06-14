@@ -5,14 +5,13 @@ struct InitResult {
 
 service Logger {
     InitResult init(
-        1:string kafkaHost,
-        2:i32 kafkaPort,
-        3:string team,
-        4:string project
+        1:required string kafkaHost,
+        2:required i32 kafkaPort,
+        3:required string team,
+        4:required string project
     )
     void log(
-        1:string level,
-        2:string message,
-        3:string token
+        1:required string level,
+        2:required string message
     )
 }

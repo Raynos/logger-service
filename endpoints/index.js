@@ -2,6 +2,7 @@
 
 var uuid = require('uuid');
 var logtron = require('logtron');
+var RelayRequest = require('./relay-request.js');
 
 module.exports = Endpoints;
 
@@ -16,9 +17,47 @@ function Endpoints(app) {
     var channel = self.app.clients.loggerChannel;
     var thrift = self.app.clients.tchannelThrift;
 
-    thrift.register(channel, 'Logger::init', app, self.init);
-    thrift.register(channel, 'Logger::log', app, self.log);
+    var endpointHandler = channel.handler;
+    endpointHandler.logger = channel.logger;
+    thrift.register(endpointHandler, 'Logger::init', app, self.init);
+    thrift.register(endpointHandler, 'Logger::log', app, self.log);
+
+    channel.handler = RingpopHandler({
+        realHandler: endpointHandler,
+        channel: self.app.clients.ringpopChannel,
+        ringpop: self.app.clients.ringpop
+    });
 }
+
+function RingpopHandler(options) {
+    if (!(this instanceof RingpopHandler)) {
+        return new RingpopHandler(options);
+    }
+
+    var self = this;
+
+    self.realHandler = options.realHandler;
+    self.ringpop = options.ringpop;
+    self.channel = options.channel;
+}
+
+RingpopHandler.prototype.handleRequest =
+function handleRequest(req, buildRes) {
+    var self = this;
+
+    var shardKey = req.headers.shardKey;
+    if (!shardKey) {
+        req.headers.shardKey = shardKey = uuid();
+    }
+
+    var dest = self.ringpop.lookup(shardKey);
+    if (self.ringpop.whoami() === dest) {
+        return self.realHandler.handleRequest(req, buildRes);
+    }
+
+    var outreq = new RelayRequest(self.channel, req, buildRes);
+    outreq.createOutRequest(dest);
+};
 
 Endpoints.prototype.init =
 function init(app, req, head, body, cb) {
@@ -34,7 +73,7 @@ function init(app, req, head, body, cb) {
             }
         })
     });
-    var token = uuid();
+    var token = req.headers.shardKey;
 
     app.loggerInstances[token] = logger;
 
@@ -48,7 +87,7 @@ function init(app, req, head, body, cb) {
 
 Endpoints.prototype.log =
 function log(app, req, head, body, cb) {
-    var logger = app.loggerInstances[body.token];
+    var logger = app.loggerInstances[req.headers.shardKey];
 
     logger[body.level](body.message, {}, onLogged);
 

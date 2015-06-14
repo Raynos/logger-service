@@ -5,14 +5,15 @@ var setTimeout = require('timers').setTimeout;
 var TestCluster = require('./lib/test-cluster.js');
 
 TestCluster.test('setting up a logger', {
-    appCount: 1
+    appCount: 2
 }, function t(cluster, assert) {
-    cluster.client.init(onInit);
+    cluster.clients[0].init(onInit);
 
     function onInit(err) {
         assert.ifError(err);
 
-        cluster.client.log({
+        cluster.clients[1].log({
+            token: cluster.clients[0].token,
             level: 'info',
             message: 'hi'
         }, onLogged);
