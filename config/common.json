@@ -1,0 +1,6 @@
+{
+    "server": {
+        "port": 9001,
+        "bootFile": null
+    }
+}

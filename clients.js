@@ -5,28 +5,24 @@ var TChannelThrift = require('tchannel/as/thrift');
 var DebugLogtron = require('debug-logtron');
 var fs = require('fs');
 var path = require('path');
-var assert = require('assert');
 var Ringpop = require('ringpop');
 
 var thriftFile = fs.readFileSync(
-    path.join(__dirname, '..', 'thrift', 'service.thrift'), 'utf8'
+    path.join(__dirname, 'thrift', 'service.thrift'), 'utf8'
 );
 
 module.exports = ApplicationClients;
 
-function ApplicationClients(options) {
+function ApplicationClients(config, options) {
     if (!(this instanceof ApplicationClients)) {
-        return new ApplicationClients(options);
+        return new ApplicationClients(config, options);
     }
 
     var self = this;
 
-    assert(options.bootFile, 'bootFile required');
-    assert(options.port, 'port required');
-
     self.logger = options.logger || DebugLogtron('loggerservice');
-    self.bootFile = options.bootFile;
-    self.port = options.port;
+    self.bootFile = config.get('server.bootFile');
+    self.port = config.get('server.port');
 
     self.tchannel = TChannel({
         logger: self.logger
@@ -58,7 +54,11 @@ ApplicationClients.prototype.bootstrap = function bootstrap(cb) {
     function onListening() {
         self.ringpop.setupChannel();
 
-        self.ringpop.bootstrap(self.bootFile, cb);
+        if (self.bootFile) {
+            self.ringpop.bootstrap(self.bootFile, cb);
+        } else {
+            cb(null);
+        }
     }
 };
 

@@ -4,12 +4,12 @@ var tapeCluster = require('tape-cluster');
 var parallel = require('run-parallel');
 var tape = require('tape');
 var DebugLogtron = require('debug-logtron');
-var TChannel = require('tchannel');
 var KafkaServer = require(
     'logtron/node_modules/kafka-logger/test/lib/kafka-server.js'
 );
 
-var Application = require('../../index.js');
+var TestClient = require('./test-client.js');
+var Application = require('../../app.js');
 
 TestCluster.test = tapeCluster(tape, TestCluster);
 
@@ -54,8 +54,12 @@ TestCluster.prototype.bootstrap = function bootstrap(cb) {
     for (i = 0; i < self.appCount; i++) {
         self.apps[i] = Application({
             logger: self.logger,
-            port: self.appPorts[i],
-            bootFile: self.bootFile
+            seedConfig: {
+                server: {
+                    port: self.appPorts[i],
+                    bootFile: self.bootFile
+                }
+            }
         });
     }
 
@@ -71,7 +75,12 @@ TestCluster.prototype.bootstrap = function bootstrap(cb) {
         for (i = 0; i < self.appCount; i++) {
             var hostPort = self.bootFile[i];
 
-            self.clients[i] = TestClient(self, hostPort);
+            self.clients[i] = TestClient({
+                hostPort: hostPort,
+                logger: self.logger,
+                kafkaHost: self.kafkaHost,
+                kafkaPort: self.kafkaPort
+            });
         }
         cb(null);
     }
@@ -95,68 +104,3 @@ TestCluster.prototype.close = function close(cb) {
     cb();
 };
 
-function TestClient(cluster, hostPort) {
-    if (!(this instanceof TestClient)) {
-        return new TestClient(cluster, hostPort);
-    }
-
-    var self = this;
-
-    self.cluster = cluster;
-    self.tchannel = TChannel({
-        logger: cluster.logger,
-        requestDefaults: {
-            hasNoParent: true,
-            headers: {
-                cn: 'test-client'
-            }
-        }
-    });
-    self.tchannelThrift = self.cluster.apps[0].clients.tchannelThrift;
-    self.clientChannel = self.tchannel.makeSubChannel({
-        serviceName: 'logger',
-        peers: [hostPort]
-    });
-
-    self.token = null;
-}
-
-TestClient.prototype.init = function init(cb) {
-    var self = this;
-
-    var req = self.clientChannel.request({
-        serviceName: 'logger'
-    });
-    self.tchannelThrift.send(req, 'Logger::init', null, {
-        kafkaHost: self.cluster.kafkaHost,
-        kafkaPort: self.cluster.kafkaPort,
-        team: 'rt',
-        project: 'logger'
-    }, onResponse);
-
-    function onResponse(err, resp) {
-        if (err || !resp.ok) {
-            return cb(err || resp.body);
-        }
-
-        self.token = resp.body.token;
-
-        cb(null);
-    }
-};
-
-TestClient.prototype.log = function log(opts, cb) {
-    var self = this;
-
-    var req = self.clientChannel.request({
-        serviceName: 'logger',
-        host: opts.host,
-        headers: {
-            shardKey: opts.token
-        }
-    });
-    self.tchannelThrift.send(req, 'Logger::log', null, {
-        message: opts.message,
-        level: opts.level
-    }, cb);
-};

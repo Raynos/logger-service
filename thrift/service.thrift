@@ -3,6 +3,10 @@ struct InitResult {
     1:string token
 }
 
+struct HealthResult {
+    1:string message
+}
+
 service Logger {
     InitResult init(
         1:required string kafkaHost,
@@ -14,4 +18,6 @@ service Logger {
         1:required string level,
         2:required string message
     )
+
+    HealthResult health()
 }

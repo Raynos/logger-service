@@ -39,3 +39,18 @@ TestCluster.test('setting up a logger', {
         assert.end();
     }
 });
+
+TestCluster.test('calling health', {
+    appCount: 2
+}, function t(cluster, assert) {
+    cluster.clients[0].health(onHealth);
+
+    function onHealth(err, resp) {
+        assert.ifError(err);
+
+        assert.ok(resp.ok);
+        assert.equal(resp.body.message, 'ok');
+
+        assert.end();
+    }
+});

@@ -1,7 +1,9 @@
 'use strict';
 
-var ApplicationClients = require('./clients/');
-var Endpoints = require('./endpoints/');
+var fetchConfig = require('zero-config');
+
+var ApplicationClients = require('./clients.js');
+var Endpoints = require('./endpoints.js');
 
 module.exports = Application;
 
@@ -13,7 +15,15 @@ function Application(options) {
     var self = this;
     options = options || {};
 
-    self.clients = ApplicationClients(options);
+    self.config = fetchConfig(__dirname, {
+        dcValue: 'local',
+        seed: options.seedConfig,
+        loose: false
+    });
+
+    self.clients = ApplicationClients(self.config, {
+        logger: options.logger
+    });
     self.endpoints = Endpoints(self);
 
     self.loggerInstances = {};

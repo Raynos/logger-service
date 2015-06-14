@@ -24,7 +24,8 @@
     "run-parallel": "1.1.1",
     "tape-cluster": "2.1.0",
     "tchannel": "2.0.0-rc4",
-    "uuid": "2.0.1"
+    "uuid": "2.0.1",
+    "zero-config": "6.0.3"
   },
   "devDependencies": {
     "format-stack": "4.1.0",
