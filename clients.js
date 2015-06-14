@@ -2,10 +2,10 @@
 
 var TChannel = require('tchannel');
 var TChannelThrift = require('tchannel/as/thrift');
-var DebugLogtron = require('debug-logtron');
 var fs = require('fs');
 var path = require('path');
 var Ringpop = require('ringpop');
+var Logtron = require('logtron');
 
 var thriftFile = fs.readFileSync(
     path.join(__dirname, 'thrift', 'service.thrift'), 'utf8'
@@ -20,7 +20,15 @@ function ApplicationClients(config, options) {
 
     var self = this;
 
-    self.logger = options.logger || DebugLogtron('loggerservice');
+    self.logger = options.logger || Logtron({
+        meta: {
+            /* todo */
+        },
+        backends: Logtron.defaultBackends({
+            console: config.get('clients.logtron.console'),
+            raw: true
+        })
+    });
     self.bootFile = config.get('server.bootFile');
     self.port = config.get('server.port');
 

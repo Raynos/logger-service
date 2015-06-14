@@ -1,4 +1,9 @@
 {
+    "clients": {
+        "logtron": {
+            "console": true
+        }
+    },
     "server": {
         "port": 9001,
         "bootFile": null
