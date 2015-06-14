@@ -24,7 +24,7 @@ function Endpoints(app) {
 
     channel.handler = RingpopHandler({
         realHandler: endpointHandler,
-        channel: self.app.clients.ringpopChannel,
+        channel: self.app.clients.loggerChannel,
         ringpop: self.app.clients.ringpop
     });
 }
